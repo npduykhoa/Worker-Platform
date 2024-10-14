@@ -1,31 +1,31 @@
-'use client'
+'use client';
 
-import React, { Dispatch, SetStateAction, useState } from 'react'
-import { IconType } from 'react-icons'
-import { GoWorkflow } from 'react-icons/go'
-import { FaStackExchange } from 'react-icons/fa'
-import { IoFileTrayStackedOutline } from 'react-icons/io5'
-import { LuNetwork } from 'react-icons/lu'
+import React, { Dispatch, SetStateAction, useState } from 'react';
+import { IconType } from 'react-icons';
+import { GoWorkflow } from 'react-icons/go';
+import { FaStackExchange } from 'react-icons/fa';
+import { IoFileTrayStackedOutline } from 'react-icons/io5';
+import { LuNetwork } from 'react-icons/lu';
 
-import { FiChevronDown, FiChevronsRight, FiUsers } from 'react-icons/fi'
-import { motion } from 'framer-motion'
-import Link from 'next/link'
-import ToggleDarkMode from '@/components/toggle-theme'
+import { FiChevronDown, FiChevronsRight, FiUsers } from 'react-icons/fi';
+import { motion } from 'framer-motion';
+import Link from 'next/link';
+import ToggleDarkMode from '@/components/toggle-theme';
 
 export const NavigationBar = () => {
-  return <Sidebar />
-}
+  return <Sidebar />;
+};
 
 const Sidebar = () => {
-  const [open, setOpen] = useState(true)
-  const [selected, setSelected] = useState('Dashboard')
+  const [open, setOpen] = useState(true);
+  const [selected, setSelected] = useState('Dashboard');
 
   return (
     <motion.nav
       layout
       className='sticky top-0 h-screen shrink-0 border-r border-slate-300 bg-white p-2 dark:bg-slate-700'
       style={{
-        width: open ? '225px' : 'fit-content'
+        width: open ? '225px' : 'fit-content',
       }}
     >
       <TitleSection open={open} />
@@ -70,8 +70,8 @@ const Sidebar = () => {
       <ToggleDarkMode isCollpaseSidebar={open} />
       <ToggleClose open={open} setOpen={setOpen} />
     </motion.nav>
-  )
-}
+  );
+};
 
 const Option = ({
   Icon,
@@ -80,15 +80,15 @@ const Option = ({
   setSelected,
   open,
   notifs,
-  url
+  url,
 }: {
-  Icon: IconType
-  title: string
-  selected: string
-  setSelected: Dispatch<SetStateAction<string>>
-  open: boolean
-  notifs?: number
-  url: string
+  Icon: IconType;
+  title: string;
+  selected: string;
+  setSelected: Dispatch<SetStateAction<string>>;
+  open: boolean;
+  notifs?: number;
+  url: string;
 }) => {
   return (
     <Link href={`${url}`}>
@@ -119,7 +119,7 @@ const Option = ({
             initial={{ scale: 0, opacity: 0 }}
             animate={{
               opacity: 1,
-              scale: 1
+              scale: 1,
             }}
             style={{ y: '-50%' }}
             transition={{ delay: 0.5 }}
@@ -130,8 +130,8 @@ const Option = ({
         )}
       </motion.button>
     </Link>
-  )
-}
+  );
+};
 
 const TitleSection = ({ open }: { open: boolean }) => {
   return (
@@ -154,16 +154,16 @@ const TitleSection = ({ open }: { open: boolean }) => {
         {open && <FiChevronDown className='mr-2' />}
       </div>
     </div>
-  )
-}
+  );
+};
 
 const Logo = () => {
   return (
     <motion.div layout className='grid size-10 shrink-0 place-content-center rounded-md bg-indigo-600'>
       <GoWorkflow className='text-white' />
     </motion.div>
-  )
-}
+  );
+};
 
 const ToggleClose = ({ open, setOpen }: { open: boolean; setOpen: Dispatch<SetStateAction<boolean>> }) => {
   return (
@@ -189,5 +189,5 @@ const ToggleClose = ({ open, setOpen }: { open: boolean; setOpen: Dispatch<SetSt
         )}
       </div>
     </motion.button>
-  )
-}
+  );
+};
