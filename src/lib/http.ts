@@ -1,181 +1,123 @@
-import envConfig from '@/config'
-import { normalizePath } from '@/lib/utils'
-import { LoginResType } from '@/schema/auth.schema'
-import { redirect } from 'next/navigation'
-type CustomOptions = Omit<RequestInit, 'method'> & {
-  baseUrl?: string | undefined
-}
-const ENTITY_ERROR_STATUS = 422
-const AUTHENTICATION_ERROR_STATUS = 401
-type EntityErrorPayload = {
-  message: string
-  errors: {
-    field: string
-    message: string
-  }[]
-}
-export class HttpError extends Error {
-  status: number
-  payload: {
-    message: string
-    [key: string]: any
+import { QueryClient, useMutation, useQuery } from '@tanstack/react-query';
+
+// Custom fetch function with interceptor-like functionality
+const customFetch = async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
+  // Request interceptor
+  const modifiedInit = { ...init };
+  const token = localStorage.getItem('token');
+  if (token) {
+    modifiedInit.headers = {
+      ...modifiedInit.headers,
+      Authorization: `Bearer ${token}`,
+    };
   }
-  constructor({
-    status,
-    payload,
-    message = 'Lỗi HTTP'
-  }: {
-    status: number
-    payload: any
-    message?: string
-  }) {
-    super(message)
-    this.status = status
-    this.payload = payload
+
+  try {
+    const response = await fetch(input, modifiedInit);
+
+    // Response interceptor
+    if (!response.ok) {
+      switch (response.status) {
+        case 401:
+          console.error('Unauthorized access');
+          break;
+        case 404:
+          console.error('Resource not found');
+          break;
+        default:
+          console.error('An error occurred:', response.statusText);
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response;
+  } catch (error) {
+    console.error('Fetch error:', error);
+    throw error;
   }
-}
-export class EntityError extends HttpError {
-  status: typeof ENTITY_ERROR_STATUS
-  payload: EntityErrorPayload
-  constructor({
-    status,
-    payload
-  }: {
-    status: typeof ENTITY_ERROR_STATUS
-    payload: EntityErrorPayload
-  }) {
-    super({ status, payload, message: 'Lỗi thực thể' })
-    this.status = status
-    this.payload = payload
-  }
-}
-let clientLogoutRequest: null | Promise<any> = null
-const isClient = typeof window !== 'undefined'
-const request = async <Response>(
+};
+
+// Generic function to make API calls
+async function fetchData<T>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   url: string,
-  options?: CustomOptions | undefined
-) => {
-  let body: FormData | string | undefined = undefined
-  if (options?.body instanceof FormData) {
-    body = options.body
-  } else if (options?.body) {
-    body = JSON.stringify(options.body)
-  }
-  const baseHeaders: {
-    [key: string]: string
-  } =
-    body instanceof FormData
-      ? {}
-      : {
-          'Content-Type': 'application/json'
-        }
-  if (isClient) {
-    const accessToken = localStorage.getItem('accessToken')
-    if (accessToken) {
-      baseHeaders.Authorization = `Bearer ${accessToken}`
-    }
-  }
-  // Nếu không truyền baseUrl (hoặc baseUrl = undefined) thì lấy từ envConfig.NEXT_PUBLIC_API_ENDPOINT
-  // Nếu truyền baseUrl thì lấy giá trị truyền vào, truyền vào '' thì đồng nghĩa với việc chúng ta gọi API đến Next.js Server
-  const baseUrl =
-    options?.baseUrl === undefined
-      ? envConfig.NEXT_PUBLIC_API_ENDPOINT
-      : options.baseUrl
-  const fullUrl = `${baseUrl}/${normalizePath(url)}`
-  const res = await fetch(fullUrl, {
-    ...options,
-    headers: {
-      ...baseHeaders,
-      ...options?.headers
-    } as any,
-    body,
-    method
-  })
-  const payload: Response = await res.json()
-  const data = {
-    status: res.status,
-    payload
-  }
-  // Interceptor xử lý request và response trước khi trả về cho phía component
-  if (!res.ok) {
-    if (res.status === ENTITY_ERROR_STATUS) {
-      throw new EntityError(
-        data as {
-          status: 422
-          payload: EntityErrorPayload
-        }
-      )
-    } else if (res.status === AUTHENTICATION_ERROR_STATUS) {
-      if (isClient) {
-        if (!clientLogoutRequest) {
-          clientLogoutRequest = fetch('/api/auth/logout', {
-            method: 'POST',
-            body: null, // Force Logout
-            headers: {
-              ...baseHeaders
-            } as any
-          })
-          try {
-            await clientLogoutRequest
-          } catch (error) {
-          } finally {
-            localStorage.removeItem('accessToken')
-            localStorage.removeItem('refreshToken')
-            clientLogoutRequest = null
+  data?: any,
+  config?: RequestInit,
+): Promise<T> {
+  const baseUrl = 'https://reqres.in/api/';
+  const fullUrl = `${baseUrl}${url}`;
 
-            location.href = '/login'
-          }
-        }
-      } else {
-        const accessToken = (options?.headers as any)?.Authorization.split(
-          'Bearer '
-        )[1]
-        redirect(`/logout?accessToken=${accessToken}`)
-      }
-    } else {
-      throw new HttpError(data)
-    }
+  const fetchConfig: RequestInit = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...config?.headers,
+    },
+    ...config,
+  };
+
+  if (data && (method === 'POST' || method === 'PUT')) {
+    fetchConfig.body = JSON.stringify(data);
   }
-  if (isClient) {
-    const normalizeUrl = normalizePath(url)
-    if (normalizeUrl === 'api/auth/login') {
-      const { accessToken, refreshToken } = (payload as LoginResType).data
-      localStorage.setItem('accessToken', accessToken)
-      localStorage.setItem('refreshToken', refreshToken)
-    } else if (normalizeUrl === 'api/auth/logout') {
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
-    }
-  }
-  return data
-}
-const http = {
-  get<Response>(
-    url: string,
-    options?: Omit<CustomOptions, 'body'> | undefined
-  ) {
-    return request<Response>('GET', url, options)
-  },
-  post<Response>(
-    url: string,
-    body: any,
-    options?: Omit<CustomOptions, 'body'> | undefined
-  ) {
-    return request<Response>('POST', url, { ...options, body })
-  },
-  put<Response>(
-    url: string,
-    body: any,
-    options?: Omit<CustomOptions, 'body'> | undefined
-  ) {
-    return request<Response>('PUT', url, { ...options, body })
-  },
-  delete<Response>(
-    url: string,
-    options?: Omit<CustomOptions, 'body'> | undefined
-  ) {
-    return request<Response>('DELETE', url, { ...options })
+
+  try {
+    const response = await customFetch(fullUrl, fetchConfig);
+    return await response.json();
+  } catch (error) {
+    console.error('Fetch error:', error);
+    throw error;
   }
 }
-export default http
+
+// Custom hook for GET requests
+export function useGetData<T>(key: string, url: string, config?: RequestInit) {
+  return useQuery<T, Error>({
+    queryKey: [key, url, config],
+    queryFn: () => fetchData<T>('GET', url, undefined, config),
+  });
+}
+
+// Custom hook for POST requests
+export function usePostData<T>() {
+  return useMutation<T, Error, { url: string; data: any; config?: RequestInit }>({
+    mutationFn: ({ url, data, config }: { url: string; data: any; config?: RequestInit }) =>
+      fetchData<T>('POST', url, data, config),
+  });
+}
+
+// Custom hook for PUT requests
+export function usePutData<T>() {
+  return useMutation<T, Error, { url: string; data: any; config?: RequestInit }>({
+    mutationFn: ({ url, data, config }: { url: string; data: any; config?: RequestInit }) =>
+      fetchData<T>('PUT', url, data, config),
+  });
+}
+
+// Custom hook for DELETE requests
+export function useDeleteData<T>() {
+  return useMutation<T, Error, { url: string; config?: RequestInit }>({
+    mutationFn: ({ url, config }: { url: string; config?: RequestInit }) =>
+      fetchData<T>('DELETE', url, undefined, config),
+  });
+}
+
+// Example usage
+// export function ExampleComponent() {
+//   const { data: getData, isLoading: isGetLoading, error: getError } = useGetData<any[]>('users', '/users');
+//   const postData = usePostData<any>();
+//   const putData = usePutData<any>();
+//   const deleteData = useDeleteData<any>();
+
+//   // Use the data and mutations as needed in your component
+//   // ...
+// }
+
+// Configure React Query
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
